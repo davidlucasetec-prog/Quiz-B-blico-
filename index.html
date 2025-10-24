@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prova Bíblica - Deuteronômio 31–34 e Josué 1–4</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #f8fafc; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body class="p-4">
+  <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow p-6">
+    <h1 class="text-2xl font-semibold mb-2">Prova: Deuteronômio 31–34 e Josué 1–4</h1>
+    <p class="text-sm text-slate-600 mb-4">10 perguntas objetivas — Pontuação por acerto e tempo.</p>
+
+    <div id="lobby">
+      <h2 class="font-medium">Lobby — Adicione participantes</h2>
+      <div class="flex gap-2 mt-3">
+        <input id="playerName" placeholder="Nome do participante" class="flex-1 px-3 py-2 border rounded" />
+        <button id="addPlayer" class="px-4 py-2 bg-blue-600 text-white rounded">Adicionar</button>
+      </div>
+      <ul id="playerList" class="mt-4 space-y-2"></ul>
+      <div class="mt-4 flex items-center gap-3">
+        <label class="text-sm">Tempo por pergunta (s):</label>
+        <input id="timeLimit" type="number" value="30" class="w-20 p-1 border rounded" />
+      </div>
+      <div class="mt-6 flex gap-3">
+        <button id="startQuiz" class="px-4 py-2 bg-green-600 text-white rounded">Iniciar prova</button>
+        <button id="resetLobby" class="px-4 py-2 border rounded">Limpar</button>
+      </div>
+    </div>
+
+    <div id="quiz" class="hidden">
+      <div class="flex justify-between">
+        <div>
+          <div class="text-sm text-slate-600">Participante atual</div>
+          <div id="currentPlayer" class="text-lg font-semibold"></div>
+        </div>
+        <div class="text-right">
+          <div class="text-sm">Questão</div>
+          <div id="questionCount" class="text-lg font-medium"></div>
+        </div>
+      </div>
+      <div id="questionBox" class="mt-4 p-4 border rounded"></div>
+      <div class="mt-2 text-sm text-slate-600">Tempo restante: <span id="timeLeft" class="font-semibold"></span>s</div>
+      <div class="mt-4">
+        <h3 class="font-medium">Progresso</h3>
+        <div class="mt-2 text-sm">
+          Acertos: <span id="correctCount">0</span> | Pontuação: <span id="score">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="results" class="hidden">
+      <h2 class="text-xl font-semibold mt-4">Resultado final</h2>
+      <ol id="leaderboard" class="mt-4 space-y-2"></ol>
+      <button id="backLobby" class="mt-4 px-4 py-2 border rounded">Voltar ao lobby</button>
+    </div>
+  </div>
+
+  <script>
+  const QUESTIONS = [
+    {q: "Em Deuteronômio 31, qual foi a principal orientação que Moisés deu a Josué diante de todo o povo?", a:["Construir um novo tabernáculo","Ser forte e corajoso ao guiar o povo à Terra Prometida","Buscar um novo profeta para substituí-lo","Fazer um sacrifício em Gileade"], c:1},
+    {q: "Segundo Deuteronômio 31, onde Moisés mandou colocar o livro da Lei?", a:["No altar de bronze","Dentro da Arca da Aliança","No Santo dos Santos","Ao lado da Arca da Aliança"], c:3},
+    {q: "O cântico de Moisés, em Deuteronômio 32, tem como propósito principal:", a:["Ensinar uma canção de louvor","Relatar as vitórias de Israel","Servir como testemunho contra a infidelidade de Israel","Ser entoado apenas pelos levitas"], c:2},
+    {q: "De acordo com Deuteronômio 32, quem é chamado de 'Rocha' no cântico de Moisés?", a:["Abraão","Deus","Moisés","Josué"], c:1},
+    {q: "Onde Moisés morreu, segundo Deuteronômio 34?", a:["Monte Sinai","Monte Ebal","Monte Nebo","Monte Horebe"], c:2},
+    {q: "Quem sucedeu Moisés como líder de Israel?", a:["Calebe","Eleazar","Josué, filho de Num","Finéias"], c:2},
+    {q: "Qual foi a instrução repetida várias vezes por Deus a Josué em Josué 1?", a:["Sê forte e corajoso.","Não temas os povos da terra.","Constrói um altar no Jordão.","Reúne os anciãos de Israel."], c:0},
+    {q: "Em Josué 2, quem ajudou os espias israelitas em Jericó?", a:["Raabe","Rute","Mical","Débora"], c:0},
+    {q: "O rio Jordão se abriu quando:", a:["Josué levantou o cajado de Moisés","O povo gritou e tocou trombetas","Os sacerdotes que levavam a Arca tocaram as águas com os pés","Josué orou durante sete dias"], c:2},
+    {q: "O que as doze pedras retiradas do Jordão representavam, segundo Josué 4?", a:["Os doze pecados de Israel","As doze tribos de Israel","Os doze meses do ano","Os doze apóstolos"], c:1}
+  ];
+
+  let players = [];
+  let current = 0;
+  let qIndex = 0;
+  let startTime;
+  let timer;
+  let timeLimit = 30;
+
+  const lobby = document.getElementById('lobby');
+  const quiz = document.getElementById('quiz');
+  const results = document.getElementById('results');
+  const playerList = document.getElementById('playerList');
+  const timeLeftEl = document.getElementById('timeLeft');
+
+  document.getElementById('addPlayer').onclick = () => {
+    const name = document.getElementById('playerName').value.trim();
+    if (!name) return;
+    players.push({name, score:0, correct:0, totalTime:0});
+    renderPlayers();
+    document.getElementById('playerName').value='';
+  };
+  document.getElementById('resetLobby').onclick = () => { players=[]; renderPlayers(); };
+  document.getElementById('startQuiz').onclick = () => {
+    if (players.length===0) return alert('Adicione pelo menos 1 participante');
+    timeLimit = Number(document.getElementById('timeLimit').value)||30;
+    startQuiz();
+  };
+  document.getElementById('backLobby').onclick = () => {
+    results.classList.add('hidden');
+    lobby.classList.remove('hidden');
+  };
+
+  function renderPlayers(){
+    playerList.innerHTML = players.map((p,i)=>`<li class='border p-2 rounded flex justify-between'><span>${p.name}</span><button onclick='players.splice(${i},1);renderPlayers();' class='text-red-600 text-sm'>Remover</button></li>`).join('');
+  }
+
+  function startQuiz(){
+    lobby.classList.add('hidden');
+    quiz.classList.remove('hidden');
+    current=0; qIndex=0;
+    showQuestion();
+  }
+
+  function showQuestion(){
+    if (qIndex>=QUESTIONS.length){
+      current++;
+      if (current<players.length){ qIndex=0; showQuestion(); return; }
+      endGame(); return;
+    }
+    const p=players[current];
+    const q=QUESTIONS[qIndex];
+    document.getElementById('currentPlayer').textContent=p.name;
+    document.getElementById('questionCount').textContent=`${qIndex+1}/${QUESTIONS.length}`;
+    const box=document.getElementById('questionBox');
+    box.innerHTML=`<div class='font-medium mb-2'>${q.q}</div>`+q.a.map((a,i)=>`<button class='block text-left w-full p-3 border rounded mb-2 hover:bg-slate-50' onclick='answer(${i})'><b>${String.fromCharCode(65+i)}.</b> ${a}</button>`).join('');
+    document.getElementById('correctCount').textContent=p.correct;
+    document.getElementById('score').textContent=p.score;
+    startTime=Date.now();
+    timeLeftEl.textContent=timeLimit;
+    clearInterval(timer);
+    timer=setInterval(()=>{
+      const t=Math.max(0, timeLimit - (Date.now()-startTime)/1000);
+      timeLeftEl.textContent=t.toFixed(1);
+      if(t<=0){ clearInterval(timer); answer(null); }
+    },100);
+  }
+
+  window.answer=function(choice){
+    clearInterval(timer);
+    const elapsed=(Date.now()-startTime)/1000;
+    const q=QUESTIONS[qIndex];
+    const p=players[current];
+    const correct=choice===q.c;
+    if(correct) p.correct++;
+    const base=correct?100:0;
+    const bonus=correct?Math.max(0,Math.round((timeLimit-Math.min(elapsed,timeLimit))*2)):0;
+    p.score+=base+bonus;
+    p.totalTime+=elapsed;
+    qIndex++;
+    setTimeout(showQuestion,500);
+  };
+
+  function endGame(){
+    quiz.classList.add('hidden');
+    results.classList.remove('hidden');
+    players.sort((a,b)=>b.score-a.score||a.totalTime-b.totalTime);
+    document.getElementById('leaderboard').innerHTML=players.map((p,i)=>`<li class='p-3 border rounded'><b>${i+1}. ${p.name}</b><br>Pontuação: ${p.score} | Acertos: ${p.correct}/10 | Tempo total: ${p.totalTime.toFixed(1)}s</li>`).join('');
+  }
+  </script>
+</body>
+</html>
